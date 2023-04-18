@@ -1,5 +1,5 @@
 param(
-    [Parameter(Mandatory, Position = 0)]
+    [Parameter(Mandatory)]
     [ValidateNotNullOrEmpty()]
     [string] $DesiredVersion
 )
@@ -40,24 +40,18 @@ function InstallLiveTestDesiredPowerShell {
     }
 }
 
-function RemoveLiveTestPreInstalledModule {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory, Position = 0)]
-        [Alias("ModuleName")]
-        [ValidateNotNullOrEmpty()]
-        [string] $Name
-    )
+& (Join-Path -Path ($PSScriptRoot | Split-Path) -ChildPath "Utilities" | Join-Path -ChildPath "CommonUtility.ps1")
 
-    # Remove Az modules
-    Get-Module -Name $Name* -ListAvailable | ForEach-Object {
-        $moduleDirectory = $_.Path | Split-Path | Split-Path
-        if (Test-Path -LiteralPath $moduleDirectory) {
-            Remove-Item -LiteralPath $moduleDirectory -Recurse -Force
-        }
-    }
-}
+Write-Host "Get-Module -Name Az"
+Get-Module -Name Az
 
-RemoveLiveTestPreInstalledModule -Name Az
-RemoveLiveTestPreInstalledModule -Name AzureRM
+Write-Host "Get-Module -Name Az -ListAvailable"
+Get-Module -Name Az -ListAvailable
+
+Write-Host "Get-Module -Name AzureRM"
+Get-Module -Name AzureRM
+
+Write-Host "Get-Module -Name AzureRM -ListAvailable"
+Get-Module -Name AzureRM -ListAvailable
+
 InstallLiveTestDesiredPowerShell -DesiredVersion $DesiredVersion

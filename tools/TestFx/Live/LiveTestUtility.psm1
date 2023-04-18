@@ -185,7 +185,7 @@ function Invoke-LiveTestCommand {
 
             $cmdResult = $Command.InvokeWithContext($null, [psvariable]::new("ErrorActionPreference", "Stop"))
 
-            Write-Host "##[section]Finish executing the command `"$expandedCommand`"" -ForegroundColor Green
+            Write-Host "##[section]Finish executing the command `"$expandedCommand`"." -ForegroundColor Green
 
             $cmdResult
             break
@@ -266,7 +266,7 @@ function Invoke-LiveTestScenario {
     }
 
     if ($proceed) {
-        Write-Host "##[group]Start executing the live scenario `"$Name`"." -ForegroundColor Magenta
+        Write-Output "##[group]Start executing the live scenario `"$Name`""
 
         if ($curPSVer.Major -eq 5) {
             $PSVersion = "5.1"
@@ -294,13 +294,13 @@ function Invoke-LiveTestScenario {
                     $snrResourceGroupLocation = $ResourceGroupLocation
                 }
 
-                Write-Host "##[section]Start creating a resource group." -ForegroundColor Green
-                Write-Host "##[section]Resource group name: $snrResourceGroupName" -ForegroundColor Green
-                Write-Host "##[section]Resource group location: $snrResourceGroupLocation" -ForegroundColor Green
+                Write-Output "##[section]Start creating a resource group."
+                Write-Output "##[section]Resource group name: $snrResourceGroupName"
+                Write-Output "##[section]Resource group location: $snrResourceGroupLocation"
 
                 $snrResourceGroup = New-LiveTestResourceGroup -Name $snrResourceGroupName -Location $snrResourceGroupLocation
 
-                Write-Host "##[section]Finish creating the resource group." -ForegroundColor Green
+                Write-Output "##[section]Finish creating the resource group."
             }
 
             $snrRetryCount = 0
@@ -315,7 +315,7 @@ function Invoke-LiveTestScenario {
 
                     $ScenarioScript.InvokeWithContext($null, $prefs, $snrResourceGroup)
 
-                    Write-Host "##[section]Finish executing the live scenario `"$Name`"." -ForegroundColor Green
+                    Write-Output "##[section]Finish executing the live scenario `"$Name`"."
 
                     break
                 }
@@ -329,8 +329,8 @@ function Invoke-LiveTestScenario {
                     if ($null -ne $snrInvocationInfo) {
                         $snrScriptName = Split-Path -Path $snrInvocationInfo.ScriptName -Leaf -ErrorAction SilentlyContinue
                         if ($snrScriptName -eq "Assert.ps1") {
-                            Write-Host "##[error]Exception was thrown from the Assert.ps1. The stack trace is:" -ForegroundColor Red
-                            Write-Host "##[error]$($snrErrorRecord.ScriptStackTrace)" -ForegroundColor Red
+                            Write-Output "##[error]Exception was thrown from the Assert.ps1. The stack trace is:"
+                            Write-Output "##[error]$($snrErrorRecord.ScriptStackTrace)"
                         }
                         else {
                             $snrErrorDetails += " thrown at line:$($snrInvocationInfo.ScriptLineNumber) char:$($snrInvocationInfo.OffsetInLine) by cmdlet '$($snrInvocationInfo.MyCommand)' on '$($snrInvocationInfo.Line.ToString().Trim())'"
@@ -342,16 +342,16 @@ function Invoke-LiveTestScenario {
                     if ($snrRetryCount -lt $script:ScenarioMaxRetryCount) {
                         $snrRetryCount++
                         $exponentialDelay = [Math]::Min((1 -shl ($snrRetryCount - 1)) * [int](Get-Random -Minimum ($script:ScenarioDelay * 0.8) -Maximum ($script:ScenarioDelay * 1.2)), $script:ScenarioMaxDelay)
-                        Write-Host "##[warning]Error occurred when executing the live scenario `"$Name`" with error details `"$snrErrorDetails`"." -ForegroundColor Yellow
-                        Write-Host "##[warning]Live test will retry automatically in $exponentialDelay seconds." -ForegroundColor Yellow
-                        Write-Host
+                        Write-Output "##[warning]Error occurred when executing the live scenario `"$Name`" with error details `"$snrErrorDetails`"."
+                        Write-Output "##[warning]Live test will retry automatically in $exponentialDelay seconds."
+                        Write-Output ""
 
                         Start-Sleep -Seconds $exponentialDelay
-                        Write-Host "##[warning]Retry #$snrRetryCount to execute the live scenario `"$Name`"." -ForegroundColor Yellow
+                        Write-Output "##[warning]Retry #$snrRetryCount to execute the live scenario `"$Name`"."
                     }
                     else {
-                        Write-Host "##[error]Failed to execute the live scenario `"$Name`" with error details `"$snrErrorDetails`"." -ForegroundColor Red
-                        Write-Host
+                        Write-Output "##[error]Failed to execute the live scenario `"$Name`" with error details `"$snrErrorDetails`"."
+                        Write-Output ""
                         $snrCsvData.IsSuccess = $false
                         $snrCsvData.Errors = ConvertToLiveTestJsonErrors -Errors $snrRetryErrors
                         break
@@ -362,8 +362,8 @@ function Invoke-LiveTestScenario {
         }
         catch {
             $snrErrorMessage = $_.Exception.Message
-            Write-Host "##[error]Error occurred when executing the live scenario `"$Name`" with error details `"$snrErrorDetails`"" -ForegroundColor Red
-            Write-Host
+            Write-Output "##[error]Error occurred when executing the live scenario `"$Name`" with error details `"$snrErrorDetails`"."
+            Write-Output ""
             $snrCsvData.IsSuccess = $false
             $snrCsvData.Errors = ConvertToLiveTestJsonErrors -Errors $snrErrorMessage
         }
@@ -373,7 +373,7 @@ function Invoke-LiveTestScenario {
 
             if (!$NoResourceGroup.IsPresent -and $null -ne $snrResourceGroup) {
                 try {
-                    Write-Host "##[section]Start cleaning up the resource group `"$snrResourceGroupName`"." -ForegroundColor Green
+                    Write-Output "##[section]Start cleaning up the resource group `"$snrResourceGroupName`"."
                     Clear-LiveTestResources -Name $snrResourceGroupName
                 }
                 catch {
@@ -381,7 +381,7 @@ function Invoke-LiveTestScenario {
                 }
             }
 
-            Write-Host "##[endgroup]" -ForegroundColor Magenta
+            Write-Output "##[endgroup]"
         }
     }
 }

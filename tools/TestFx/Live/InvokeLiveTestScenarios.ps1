@@ -34,7 +34,9 @@ if ($RunPowerShell -eq "latest") {
 $srcDir = Join-Path -Path $RepoLocation -ChildPath "src"
 $liveScenarios = Get-ChildItem -Path $srcDir -Directory -Exclude "Accounts" | Get-ChildItem -Directory -Filter "LiveTests" -Recurse | Get-ChildItem -File -Filter "TestLiveScenarios.ps1" | Select-Object -ExpandProperty FullName
 
-$rsp = [runspacefactory]::CreateRunspacePool(1, [int]$env:NUMBER_OF_PROCESSORS + 1)
+$initSessionState = [InitialSessionState]::CreateDefault()
+$rsp = [runspacefactory]::CreateRunspacePool($initSessionState)
+[void]$rsp.SetMaxRunspaces([int]$env:NUMBER_OF_PROCESSORS + 1)
 [void]$rsp.Open()
 
 $liveJobs = $liveScenarios | ForEach-Object {
@@ -43,19 +45,20 @@ $liveJobs = $liveScenarios | ForEach-Object {
     $ps.AddScript({
         param (
             [string] $RunPlatform,
-            [string] $RepoLocation,
+            [string] $PowerShellLatest,
             [string] $DataLocation,
             [string] $LiveScenarioScript
         )
 
-        Write-Host "Run platform : $RunPlatform"
-        Write-Host "Repo location : $RepoLocation"
-        Write-Host "Data location : $DataLocation"
-        Write-Host "Live test script : $LiveScenarioScript"
         $moduleName = [regex]::match($LiveScenarioScript, "[\\|\/]src[\\|\/](?<ModuleName>[a-zA-Z]+)[\\|\/]").Groups["ModuleName"].Value
+
+        Write-Output "##[group]Live test run for module `"$moduleName`""
+
         Import-Module "./tools/TestFx/Assert.ps1" -Force
         Import-Module "./tools/TestFx/Live/LiveTestUtility.psd1" -ArgumentList $moduleName, $RunPlatform, $PowerShellLatest, $DataLocation -Force
         . $LiveScenarioScript
+
+        Write-Output "##[endgroup]"
     }).AddParameter("RunPlatform", $RunPlatform).AddParameter("PowerShellLatest", $PowerShellLatest).AddParameter("DataLocation", $DataLocation).AddParameter("LiveScenarioScript", $_) | Out-Null
 
     [PSCustomObject]@{
@@ -67,13 +70,18 @@ $liveJobs = $liveScenarios | ForEach-Object {
     }
 }
 
-$totalJobs = $liveJobs
-while ($totalJobs.Count -gt 0) {
-    Start-Sleep -Seconds 10
+Start-Sleep -Seconds 300
+
+$totalJobsCount = $liveJobs.Count
+$completedJobsCount = 0
+$queuedJobs = $liveJobs
+while ($queuedJobs.Count -gt 0) {
+    Start-Sleep -Seconds 9
+
     $runningJobs = @()
     $completedJobs = @()
-    foreach ($job in $totalJobs) {
-        if ($job.State -match "Completed|Failed|Stopped|Suspended|Disconnected" -and $job.AsyncHandle.IsCompleted) {
+    foreach ($job in $queuedJobs) {
+        if ($job.State -match "Completed|Failed|Stopped|Disconnected") {
             $completedJobs += $job
         }
         else {
@@ -81,6 +89,7 @@ while ($totalJobs.Count -gt 0) {
         }
     }
 
+    $completedJobsCount += $completedJobs.Count
     if ($completedJobs.Count -gt 0) {
         $completedJobs | ForEach-Object {
             if ($null -ne $_.Instance) {
@@ -91,11 +100,15 @@ while ($totalJobs.Count -gt 0) {
         }
     }
 
-    Write-Host "Total jobs: $($totalJobs.Count)"
-    Write-Host "Running jobs: $($runningJobs.Count)"
-    Write-Host "Completed jobs: $($completedJobs.Count)"
+    $queuedJobs = $runningJobs
 
-    $totalJobs = $runningJobs
+    Write-Host "##[group]Progress of the live test jobs" -ForegroundColor Magenta
+
+    Write-Host "##[section]Total jobs: $totalJobsCount" -ForegroundColor Green
+    Write-Host "##[section]Running jobs: $($runningJobs.Count)" -ForegroundColor Green
+    Write-Host "##[section]Completed jobs: $completedJobsCount" -ForegroundColor Green
+
+    Write-Host "##[endgroup]" -ForegroundColor Magenta
 }
 
 $rsp.Dispose()
